@@ -8,7 +8,25 @@ set -e
 BASHRC="$HOME/.bashrc"
 ZSH_RC="$HOME/.zshrc"
 
-KYAI_CODE='
+echo "🚀 Installing kyai - kubectl with namespace memory..."
+
+if ! command -v kubectl &> /dev/null; then
+    echo "❌ kubectl not found. Please install kubectl first."
+    exit 1
+fi
+
+if grep -q "# kyai - kubectl with namespace memory" "$BASHRC" 2>/dev/null; then
+    echo "⚠️  kyai is already installed in $BASHRC"
+    read -p "Do you want to reinstall? (y/n) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Installation cancelled."
+        exit 0
+    fi
+    sed -i.bak '/# kyai - kubectl with namespace memory/,/# End of kyai installation/d' "$BASHRC"
+fi
+
+cat >> "$BASHRC" << 'EOF'
 # kyai - kubectl with namespace memory
 export LAST_K8S_NAMESPACE="default"
 
@@ -142,27 +160,7 @@ kw() {
 
 complete -F _k_completion k
 # End of kyai installation
-'
-
-echo "🚀 Installing kyai - kubectl with namespace memory..."
-
-if ! command -v kubectl &> /dev/null; then
-    echo "❌ kubectl not found. Please install kubectl first."
-    exit 1
-fi
-
-if grep -q "# kyai - kubectl with namespace memory" "$BASHRC" 2>/dev/null; then
-    echo "⚠️  kyai is already installed in $BASHRC"
-    read -p "Do you want to reinstall? (y/n) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "Installation cancelled."
-        exit 0
-    fi
-    sed -i '/# kyai - kubectl with namespace memory/,/# End of kyai installation/d' "$BASHRC"
-fi
-
-echo "$KYAI_CODE" >> "$BASHRC"
+EOF
 
 echo "✅ kyai installed successfully!"
 echo ""
@@ -170,9 +168,9 @@ echo "📝 To start using kyai, run:"
 echo "   source ~/.bashrc"
 echo ""
 echo "🎯 Usage examples:"
-echo "   k get pods                    # use remembered namespace"
-echo "   k -n production get svc       # switch to production"
-echo "   k logs my-pod                 # formatted logs"
-echo "   watch -n1 k top pod my-pod    # works with watch!"
+echo "   k get pods                      # use remembered namespace"
+echo "   k -n production get svc         # switch to production"
+echo "   k logs my-pod                   # formatted logs"
+echo "   kw top pod my-pod               # watch with graphs!"
 echo ""
-echo "⭐ Star us on GitHub: https://github.com/yourusername/kyai"
+echo "⭐ Star us on GitHub: https://github.com/ITPATJIDR/Kyai"
