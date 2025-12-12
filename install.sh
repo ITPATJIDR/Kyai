@@ -17,11 +17,9 @@ k() {
     local namespace_value=""
     local found_namespace=false
     local is_logs_command=false
-    
     if [[ "$1" == "logs" ]]; then
         is_logs_command=true
     fi
-    
     for arg in "$@"; do
         if [[ "$found_namespace" == true ]]; then
             namespace_value="$arg"
@@ -31,13 +29,11 @@ k() {
             found_namespace=true
         fi
     done
-    
     if [[ "$namespace_value" == "" ]]; then
         namespace_arg="-n $LAST_K8S_NAMESPACE"
     fi
-    
     if [[ "$is_logs_command" == true ]]; then
-        command kubectl $namespace_arg "$@" | awk '\''
+        command kubectl $namespace_arg "$@" | awk '
         BEGIN { prev = "" }
         {
             gsub(/^[[:space:]]+|[[:space:]]+$/, "")
@@ -54,7 +50,7 @@ k() {
                 print $0
             }
             prev = $0
-        }'\''
+        }'
     else
         command kubectl $namespace_arg "$@"
     fi
@@ -63,13 +59,85 @@ k() {
 export -f k
 export LAST_K8S_NAMESPACE
 
-
 _k_completion() {
     local cur prev words cword
     _init_completion || return
     local cmd=kubectl
     COMP_WORDS[0]=$cmd
     __start_kubectl
+}
+
+kw() {
+    if [[ "$1" == "top" && "$2" == "pod" ]]; then
+        local pod_name="$3"
+        local history_file="/tmp/kw_history_${pod_name}.txt"
+
+        if [[ -f "$history_file" ]]; then
+            local file_age=$(($(date +%s) - $(stat -c %Y "$history_file" 2>/dev/null || stat -f %m "$history_file" 2>/dev/null)))
+            if [[ $file_age -gt 3600 ]]; then
+                rm "$history_file"
+            fi
+        fi
+
+        watch -n1 "bash -c '
+            OUTPUT=\$(kubectl -n $LAST_K8S_NAMESPACE top pod $pod_name 2>&1)
+
+            if echo \"\$OUTPUT\" | grep -q \"NAME\"; then
+                CPU=\$(echo \"\$OUTPUT\" | tail -1 | awk \"{print \\\$2}\" | sed \"s/m//\")
+                MEM=\$(echo \"\$OUTPUT\" | tail -1 | awk \"{print \\\$3}\" | sed \"s/Mi//\")
+
+                echo \"\$CPU \$MEM\" >> $history_file
+                tail -5 $history_file > ${history_file}.tmp && mv ${history_file}.tmp $history_file
+
+                mapfile -t HISTORY < $history_file
+
+                echo \"Pod: $pod_name | Namespace: $LAST_K8S_NAMESPACE\"
+                echo \"===========================================\"
+                echo \"\$OUTPUT\"
+                echo \"\"
+                echo \"CPU History (last 5 samples):\"
+
+                MAX_CPU=1000
+                for line in \"\${HISTORY[@]}\"; do
+                    c=\$(echo \$line | awk \"{print \\\$1}\")
+                    if [[ \$c -gt \$MAX_CPU ]]; then
+                        MAX_CPU=\$c
+                    fi
+                done
+
+                for line in \"\${HISTORY[@]}\"; do
+                    c=\$(echo \$line | awk \"{print \\\$1}\")
+                    bars=\$((c * 50 / MAX_CPU))
+                    printf \"%4sm |\" \$c
+                    printf \"█%.0s\" \$(seq 1 \$bars)
+                    echo \"\"
+                done
+
+                echo \"\"
+                echo \"Memory History (last 5 samples):\"
+
+                MAX_MEM=3000
+                for line in \"\${HISTORY[@]}\"; do
+                    m=\$(echo \$line | awk \"{print \\\$2}\")
+                    if [[ \$m -gt \$MAX_MEM ]]; then
+                        MAX_MEM=\$m
+                    fi
+                done
+
+                for line in \"\${HISTORY[@]}\"; do
+                    m=\$(echo \$line | awk \"{print \\\$2}\")
+                    bars=\$((m * 50 / MAX_MEM))
+                    printf \"%4sMi |\" \$m
+                    printf \"█%.0s\" \$(seq 1 \$bars)
+                    echo \"\"
+                done
+            else
+                echo \"\$OUTPUT\"
+            fi
+        '"
+    else
+        watch -n1 "kubectl -n $LAST_K8S_NAMESPACE $*"
+    fi
 }
 
 complete -F _k_completion k
