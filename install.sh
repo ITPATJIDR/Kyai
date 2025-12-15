@@ -76,24 +76,61 @@ k() {
     fi
     
     if [[ "$is_logs_command" == true ]]; then
-        command kubectl $namespace_arg "$@" | awk '
-        BEGIN { prev = "" }
+	command kubectl $namespace_arg "$@" | awk '
+        function json_pretty_print(str) {
+            return str
+        }
+
+        BEGIN {
+            prev = ""
+            # ANSI Color Codes
+            RED="\033[0;31m"
+            YELLOW="\033[0;33m"
+            CYAN="\033[0;36m"
+            NC="\033[0m" # No Color
+        }
+
         {
             gsub(/^[[:space:]]+|[[:space:]]+$/, "")
+
             if (length($0) == 0) next
             if ($0 == prev) next
-            if (match($0, /^[0-9]{4}-[0-9]{2}-[0-9]{2}/)) {
+
+            if ($0 ~ /^{.*}$/) {
                 print ""
-                print $0
-            } else if (match($0, /(ERROR|WARN|INFO|DEBUG|FATAL)/)) {
-                print ""
-                print $0
+
+                line = $0
+                if (line ~ /"level":"error"/) {
+                    print RED line NC
+                } else if (line ~ /"level":"warn"/) {
+                    print YELLOW line NC
+                } else {
+                    print line
+                }
+
+            } else if ($0 ~ /^[0-9]{4}[/-][0-9]{2}[/-][0-9]{2}/ || $0 ~ /\[(notice|info|warn|error|crit|emerg)\]/) {
+                print "" 
+
+                line = $0
+
+                if (line ~ /(ERROR|FATAL)/) {
+                    print RED line NC
+                } else if (line ~ /(WARN|notice)/) {
+                    print YELLOW line NC
+                } else {
+                    print line
+                }
+
+            } else if ($0 ~ /^(SELECT|INSERT|UPDATE|DELETE)/ || $0 ~ /[0-9]{3} - (GET|POST|PUT|DELETE)/) {
+                print CYAN $0 NC
+
             } else {
-                print ""
                 print $0
             }
+
             prev = $0
-        }'
+        }
+        '
     else
         command kubectl $namespace_arg "$@"
     fi
