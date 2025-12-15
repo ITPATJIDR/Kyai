@@ -21,7 +21,7 @@ k get pods                    # use default or last namespace
 k -n production get svc       # switch to production
 k get deploy                  # still in production
 k logs my-pod                 # formatted logs
-watch -n1 k top pod my-pod    # works with watch!
+kw top pod my-pod             # works with watch!
 ```
 
 ## 🗑️ Uninstall
