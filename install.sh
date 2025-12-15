@@ -76,27 +76,88 @@ k() {
     fi
     
     if [[ "$is_logs_command" == true ]]; then
-	command kubectl $namespace_arg "$@" | awk '
-        function json_pretty_print(str) {
-            return str
-        }
-
+command kubectl $namespace_arg "$@" | awk '
         BEGIN {
             prev = ""
             # ANSI Color Codes
             RED="\033[0;31m"
             YELLOW="\033[0;33m"
             CYAN="\033[0;36m"
+            GREEN="\033[0;32m"
+            BLUE="\033[0;34m"
             NC="\033[0m" # No Color
         }
 
         {
+            # 1. Clean up & Deduplication
             gsub(/^[[:space:]]+|[[:space:]]+$/, "")
-
             if (length($0) == 0) next
             if ($0 == prev) next
 
-            if ($0 ~ /^{.*}$/) {
+            # 3. Handle Istio/Standard Structured Logs (2025-12-15T10:54:...)
+            if ($0 ~ /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{6}Z/) {
+
+                print ""
+
+                timestamp = $1
+                level = $2
+                caller = $3
+
+                message = ""
+                for (i = 4; i <= NF; i++) {
+                    message = message $i " "
+                }
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", message)
+
+
+                # ใช้ concatenation แทน printf ที่ซับซ้อน
+                prefix = BLUE "[" level "]" NC " " CYAN timestamp NC " | " BLUE caller NC " | "
+
+                if (level == "error") {
+                    print prefix RED message NC
+                } else if (level == "warn") {
+                    print prefix YELLOW message NC
+                } else {
+                    # INFO / DEBUG: เน้น Latency/TTL ด้วยสีเขียว
+                    formatted_message = message
+
+                    gsub(/latency=([0-9.]+ms)/, GREEN "\\1" NC, formatted_message)
+                    gsub(/ttl=([0-9hms.]+)/, GREEN "\\1" NC, formatted_message)
+
+                    print prefix formatted_message
+                }
+
+            # 4. Handle Kubernetes Component Logs (I/W/E 1215 04:56:...)
+            } else if ($0 ~ /^[IWE][0-9]{4} [0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{6}/) {
+
+                print ""
+
+                level = substr($0, 1, 1)
+                timestamp = substr($0, 2, 18)
+
+                # ตัดส่วนไฟล์ต้นทาง: 1 controller.go:95]
+                match($0, /[0-9]+ [a-zA-Z0-9_/.-]+:[0-9]+\]/)
+                if (RSTART > 0) {
+                    message = substr($0, RSTART + RLENGTH)
+                } else {
+                    message = substr($0, 20)
+                }
+
+                gsub(/^[[:space:]]+/, "", message)
+
+                # ใช้ concatenation แทน printf ที่ซับซ้อน
+                prefix = BLUE "[" level "]" NC " " CYAN timestamp NC " | " BLUE "K8S_COMP" NC " | "
+
+                if (level == "E") {
+                    print prefix RED message NC
+                } else if (level == "W") {
+                    print prefix YELLOW message NC
+                } else {
+                    print prefix message
+                }
+
+            # 5. Handle JSON logs (pod_2)
+            } else if ($0 ~ /^{.*}$/) {
                 print ""
 
                 line = $0
@@ -108,8 +169,9 @@ k() {
                     print line
                 }
 
+            # 6. Handle Standard/Go/Nginx logs (pod_1, pod_3)
             } else if ($0 ~ /^[0-9]{4}[/-][0-9]{2}[/-][0-9]{2}/ || $0 ~ /\[(notice|info|warn|error|crit|emerg)\]/) {
-                print "" 
+                print ""
 
                 line = $0
 
@@ -121,16 +183,17 @@ k() {
                     print line
                 }
 
+            # 7. Handle SQL Query and HTTP Request (pod_1)
             } else if ($0 ~ /^(SELECT|INSERT|UPDATE|DELETE)/ || $0 ~ /[0-9]{3} - (GET|POST|PUT|DELETE)/) {
                 print CYAN $0 NC
 
+            # 8. Default/Continuation Lines
             } else {
                 print $0
             }
 
             prev = $0
-        }
-        '
+        }'
     else
         command kubectl $namespace_arg "$@"
     fi
