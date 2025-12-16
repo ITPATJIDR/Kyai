@@ -8,6 +8,7 @@ Lightweight kubectl wrapper that remembers your last namespace and formats logs 
 - 📝 **Format logs** - Clean, readable log output
 - 🔄 **Tab completion** - Full kubectl completion support
 - 🪶 **Lightweight** - Just a bash function, no dependencies
+- 📍 **Active context visibility** - Always show current namespace prominently
 
 ## 🚀 Quick Install
 ```bash

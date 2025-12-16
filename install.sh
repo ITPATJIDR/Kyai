@@ -74,6 +74,8 @@ k() {
     if [[ "$namespace_value" == "" ]]; then
         namespace_arg="-n $LAST_K8S_NAMESPACE"
     fi
+
+    echo -e "\033[0;97;42m  CONTEXT: Namespace -> [ $LAST_K8S_NAMESPACE ]  \033[0m"
     
     if [[ "$is_logs_command" == true ]]; then
 command kubectl $namespace_arg "$@" | awk '
