@@ -294,6 +294,24 @@ kw() {
     fi
 }
 
+kh() {
+    echo -e "\n\033[1;33m🔍 Kubernetes Health Check\033[0m"
+
+    echo -e "\n\033[1;36m1. Node Status (Kubelet)\033[0m"
+    kubectl get nodes -o wide
+
+    echo -e "\n\033[1;36m2. Node Resources\033[0m"
+    if kubectl top nodes &> /dev/null; then
+        kubectl top nodes
+    else
+        echo "⚠️  Metrics API not available (metrics-server might be missing)"
+    fi
+
+    echo -e "\n\033[1;36m3. Control Plane Components\033[0m"
+    # Check pods in kube-system
+    kubectl get pods -n kube-system -o wide | grep -E 'etcd|kube-apiserver|kube-controller-manager|kube-scheduler|coredns' || echo "No control plane pods visible in kube-system"
+}
+
 export LAST_K8S_NAMESPACE
 
 # End of kyai installation
