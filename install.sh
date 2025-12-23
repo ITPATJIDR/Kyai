@@ -78,7 +78,7 @@ k() {
     printf "  CONTEXT: Namespace -> [ %s ]  \n" "$LAST_K8S_NAMESPACE"
     
     if [[ "$is_logs_command" == true ]]; then
-command kubectl $namespace_arg "$@" | awk '
+        command kubectl $namespace_arg "$@" | awk '
         BEGIN {
             prev = ""
             # ANSI Color Codes
