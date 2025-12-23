@@ -298,40 +298,38 @@ kh() {
     echo -e "\n\033[1;33m🔍 Kubernetes Health Check\033[0m"
 
     echo -e "\n\033[1;36m1. Node Status (Kubelet)\033[0m"
-    kubectl get nodes -o wide
+    command kubectl get nodes -o wide
 
     echo -e "\n\033[1;36m2. Node Resources\033[0m"
-    if kubectl top nodes &> /dev/null; then
-        kubectl top nodes
+    if command kubectl top nodes &> /dev/null; then
+        command kubectl top nodes
     else
         echo "⚠️  Metrics API not available (metrics-server might be missing)"
     fi
 
     echo -e "\n\033[1;36m3. Control Plane Components\033[0m"
     # Check pods in kube-system
-    kubectl get pods -n kube-system -o wide | grep -E 'etcd|kube-apiserver|kube-controller-manager|kube-scheduler|coredns' || echo "No control plane pods visible in kube-system"
+    command kubectl get pods -n kube-system -o wide | grep -E 'etcd|kube-apiserver|kube-controller-manager|kube-scheduler|coredns' || echo "No control plane pods visible in kube-system"
 
     echo -e "\n\033[1;36m4. Pod Health (Global - Non-Running)\033[0m"
-    PROBLEMS=$(kubectl get pods -A --no-headers 2>/dev/null | grep -vE 'Running|Completed' | awk '{print $1, $2, $3, $4, $5, $6}')
+    PROBLEMS=$(command kubectl get pods -A --no-headers 2>/dev/null | grep -vE 'Running|Completed')
     if [[ -z "$PROBLEMS" ]]; then
         echo "✅ All pods are healthy"
     else
-        echo -e "NAMESPACE\tNAME\tREADY\tSTATUS\tRESTARTS\tAGE"
-        echo "$PROBLEMS" | head -n 10
+        echo "$PROBLEMS" | head -n 10 | awk 'BEGIN {printf "%-20s %-30s %-10s %-20s %-10s %-10s\n", "NAMESPACE", "NAME", "READY", "STATUS", "RESTARTS", "AGE"} {printf "%-20s %-30s %-10s %-20s %-10s %-10s\n", $1, $2, $3, $4, $5, $6}'
         if [[ $(echo "$PROBLEMS" | wc -l) -gt 10 ]]; then echo "...and more"; fi
     fi
 
     echo -e "\n\033[1;36m5. Deployment Health (Global - Not Ready)\033[0m"
-    DEPLOYS=$(kubectl get deploy -A --no-headers 2>/dev/null | awk '{split($3,a,"/"); if(a[1]!=a[2]) print $0}')
+    DEPLOYS=$(command kubectl get deploy -A --no-headers 2>/dev/null | awk '{split($3,a,"/"); if(a[1]!=a[2]) print $0}')
     if [[ -z "$DEPLOYS" ]]; then
         echo "✅ All deployments are ready"
     else
-        echo -e "NAMESPACE\tNAME\tREADY\tUP-TO-DATE\tAVAILABLE\tAGE"
-        echo "$DEPLOYS"
+        echo "$DEPLOYS" | awk 'BEGIN {printf "%-20s %-30s %-10s %-10s %-10s %-10s\n", "NAMESPACE", "NAME", "READY", "UP-TO-DATE", "AVAILABLE", "AGE"} {printf "%-20s %-30s %-10s %-10s %-10s %-10s\n", $1, $2, $3, $4, $5, $6}'
     fi
 
     echo -e "\n\033[1;36m6. Services (Namespace: $LAST_K8S_NAMESPACE)\033[0m"
-    kubectl get svc -n "$LAST_K8S_NAMESPACE" 2>/dev/null || echo "No services found in $LAST_K8S_NAMESPACE"
+    command kubectl get svc -n "$LAST_K8S_NAMESPACE" 2>/dev/null || echo "No services found in $LAST_K8S_NAMESPACE"
 }
 
 export LAST_K8S_NAMESPACE
