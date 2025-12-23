@@ -310,6 +310,28 @@ kh() {
     echo -e "\n\033[1;36m3. Control Plane Components\033[0m"
     # Check pods in kube-system
     kubectl get pods -n kube-system -o wide | grep -E 'etcd|kube-apiserver|kube-controller-manager|kube-scheduler|coredns' || echo "No control plane pods visible in kube-system"
+
+    echo -e "\n\033[1;36m4. Pod Health (Global - Non-Running)\033[0m"
+    PROBLEMS=$(kubectl get pods -A --no-headers 2>/dev/null | grep -vE 'Running|Completed' | awk '{print $1, $2, $3, $4, $5, $6}')
+    if [[ -z "$PROBLEMS" ]]; then
+        echo "✅ All pods are healthy"
+    else
+        echo -e "NAMESPACE\tNAME\tREADY\tSTATUS\tRESTARTS\tAGE"
+        echo "$PROBLEMS" | head -n 10
+        if [[ $(echo "$PROBLEMS" | wc -l) -gt 10 ]]; then echo "...and more"; fi
+    fi
+
+    echo -e "\n\033[1;36m5. Deployment Health (Global - Not Ready)\033[0m"
+    DEPLOYS=$(kubectl get deploy -A --no-headers 2>/dev/null | awk '{split($3,a,"/"); if(a[1]!=a[2]) print $0}')
+    if [[ -z "$DEPLOYS" ]]; then
+        echo "✅ All deployments are ready"
+    else
+        echo -e "NAMESPACE\tNAME\tREADY\tUP-TO-DATE\tAVAILABLE\tAGE"
+        echo "$DEPLOYS"
+    fi
+
+    echo -e "\n\033[1;36m6. Services (Namespace: $LAST_K8S_NAMESPACE)\033[0m"
+    kubectl get svc -n "$LAST_K8S_NAMESPACE" 2>/dev/null || echo "No services found in $LAST_K8S_NAMESPACE"
 }
 
 export LAST_K8S_NAMESPACE
